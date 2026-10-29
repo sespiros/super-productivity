@@ -140,6 +140,7 @@ const mapReduced = (issue: LinearRawIssueReduced): PluginSearchResult => ({
   // Provider-specific fields used for display + isDone mapping.
   identifier: issue.identifier,
   stateType: issue.state?.type,
+  stateTags: issue.state?.name ? [issue.state.name] : [],
 });
 
 const searchAssignedIssues = async (
@@ -299,6 +300,7 @@ registerIssueProvider({
       number: issue.number,
       summary: `${issue.identifier} ${issue.title}`,
       stateType: issue.state?.type,
+      stateTags: issue.state?.name ? [issue.state.name] : [],
       priority: issue.priority,
       creator: issue.creator?.name,
       createdAt: new Date(issue.createdAt).getTime(),
@@ -347,7 +349,15 @@ registerIssueProvider({
       open: 'unstarted',
       isDone: (issueValue) => DONE_STATE_TYPES.includes(issueValue as string),
     }),
+    // Off by default; "Pull only" tags each task with its Linear status.
+    {
+      taskField: 'tagIds',
+      issueField: 'stateTags',
+      defaultDirection: 'off',
+      toIssueValue: () => undefined,
+      toTaskValue: (issueValue) => (Array.isArray(issueValue) ? issueValue : []),
+    },
   ],
 
-  extractSyncValues: pickSyncValues('stateType', 'title', 'body'),
+  extractSyncValues: pickSyncValues('stateType', 'stateTags', 'title', 'body'),
 });
