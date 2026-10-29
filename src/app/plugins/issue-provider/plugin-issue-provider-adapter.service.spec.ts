@@ -1258,6 +1258,89 @@ describe('PluginIssueProviderAdapterService', () => {
         expect(result!.taskChanges.issueLastSyncedValues).toEqual({ labels: ['bug'] });
       });
 
+      it('should swap only the mapped tags and keep the other tags of the task', async () => {
+        const freshIssue: PluginIssue = {
+          id: 'ISS-1',
+          title: 'Moved',
+          lastUpdated: 2000,
+          labels: ['In Review'],
+        };
+        const provider = createMockProvider({
+          getById: jasmine.createSpy('getById').and.resolveTo(freshIssue),
+          fieldMappings: [
+            {
+              taskField: 'tagIds',
+              issueField: 'labels',
+              defaultDirection: 'pullOnly',
+              toIssueValue: (v: unknown) => v,
+              toTaskValue: (v: unknown) => v,
+            },
+          ],
+          extractSyncValues: undefined,
+        });
+        registrySpy.getProvider.and.returnValue(provider);
+        storeSpy.select.and.returnValue(of(mockPluginCfg));
+        tagServiceSpy.tagsNoMyDayAndNoList.and.returnValue([
+          { id: 'tag-progress', title: 'In Progress' },
+          { id: 'tag-review', title: 'In Review' },
+          { id: 'tag-contrast', title: 'contrast' },
+        ] as any);
+
+        const task = {
+          id: 'task-1',
+          issueId: 'ISS-1',
+          issueProviderId: PROVIDER_ID,
+          issueLastUpdated: 1000,
+          tagIds: ['tag-contrast', 'tag-progress'],
+          issueLastSyncedValues: { labels: ['In Progress'] },
+        } as unknown as Task;
+
+        const result = await service.getFreshDataForIssueTask(task);
+
+        expect(result!.taskChanges.tagIds).toEqual(['tag-contrast', 'tag-review']);
+      });
+
+      it('should not set tags on a sub-task', async () => {
+        const freshIssue: PluginIssue = {
+          id: 'ISS-2',
+          title: 'Moved child',
+          lastUpdated: 2000,
+          labels: ['In Review'],
+        };
+        const provider = createMockProvider({
+          getById: jasmine.createSpy('getById').and.resolveTo(freshIssue),
+          fieldMappings: [
+            {
+              taskField: 'tagIds',
+              issueField: 'labels',
+              defaultDirection: 'pullOnly',
+              toIssueValue: (v: unknown) => v,
+              toTaskValue: (v: unknown) => v,
+            },
+          ],
+          extractSyncValues: undefined,
+        });
+        registrySpy.getProvider.and.returnValue(provider);
+        storeSpy.select.and.returnValue(of(mockPluginCfg));
+        tagServiceSpy.tagsNoMyDayAndNoList.and.returnValue([
+          { id: 'tag-review', title: 'In Review' },
+        ] as any);
+
+        const task = {
+          id: 'task-2',
+          parentId: 'task-1',
+          issueId: 'ISS-2',
+          issueProviderId: PROVIDER_ID,
+          issueLastUpdated: 1000,
+          tagIds: [],
+          issueLastSyncedValues: { labels: ['In Progress'] },
+        } as unknown as Task;
+
+        const result = await service.getFreshDataForIssueTask(task);
+
+        expect(result!.taskChanges['tagIds' as keyof Task]).toBeUndefined();
+      });
+
       it('should pass issueNumber from the fresh issue into ctx for toTaskValue', async () => {
         const freshIssue: PluginIssue = {
           id: 'ISS-1',

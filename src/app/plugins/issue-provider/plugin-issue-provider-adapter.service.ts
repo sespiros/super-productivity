@@ -727,6 +727,10 @@ export class PluginIssueProviderAdapterService implements IssueServiceInterface 
       const lastValue = lastSyncedValues[mapping.issueField];
 
       if (mapping.taskField === 'tagIds') {
+        // Sub-tasks never hold tags (the addSubTask reducer clears them).
+        if (task.parentId) {
+          continue;
+        }
         const toLabels = (v: unknown): string[] => {
           const taskValue = v != null ? mapping.toTaskValue(v, ctx) : [];
           return sortTagLabels(taskValue);
@@ -743,7 +747,15 @@ export class PluginIssueProviderAdapterService implements IssueServiceInterface 
           'isAutoCreateTags'
         ];
         const tagIds = this._mapLabelsToTagIds(labels, isAutoCreateTags);
-        changes.tagIds = tagIds;
+        // Swap only the tags this mapping set last time, so tags the user or the
+        // provider's default tags added stay on the task.
+        const previousIds = new Set(this._mapLabelsToTagIds(lastLabels, false));
+        changes.tagIds = Array.from(
+          new Set([
+            ...(task.tagIds ?? []).filter((id) => !previousIds.has(id)),
+            ...tagIds,
+          ]),
+        );
         continue;
       }
 
